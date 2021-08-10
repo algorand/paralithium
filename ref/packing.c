@@ -2,6 +2,7 @@
 #include "packing.h"
 #include "polyvec.h"
 #include "poly.h"
+#include "sumhash512.h"
 
 /*************************************************
 * Name:        pack_pk
@@ -52,7 +53,7 @@ void unpack_pk(uint8_t rho[SEEDBYTES],
 /*************************************************
 * Name:        pack_sk
 *
-* Description: Bit-pack secret key sk = (rho, tr, key, t0, s1, s2).
+* Description: Bit-pack secret key sk = (rho, key, tr, s1, s2, t0).
 *
 * Arguments:   - uint8_t sk[]: output byte array
 *              - const uint8_t rho[]: byte array containing rho
@@ -64,7 +65,7 @@ void unpack_pk(uint8_t rho[SEEDBYTES],
 **************************************************/
 void pack_sk(uint8_t sk[CRYPTO_SECRETKEYBYTES],
              const uint8_t rho[SEEDBYTES],
-             const uint8_t tr[SEEDBYTES],
+             const uint8_t tr[SUMHASH512_DIGEST_SIZE],
              const uint8_t key[SEEDBYTES],
              const polyveck *t0,
              const polyvecl *s1,
@@ -80,9 +81,9 @@ void pack_sk(uint8_t sk[CRYPTO_SECRETKEYBYTES],
     sk[i] = key[i];
   sk += SEEDBYTES;
 
-  for(i = 0; i < SEEDBYTES; ++i)
+  for(i = 0; i < SUMHASH512_DIGEST_SIZE; ++i)
     sk[i] = tr[i];
-  sk += SEEDBYTES;
+  sk += SUMHASH512_DIGEST_SIZE;
 
   for(i = 0; i < L; ++i)
     polyeta_pack(sk + i*POLYETA_PACKEDBYTES, &s1->vec[i]);
@@ -99,7 +100,7 @@ void pack_sk(uint8_t sk[CRYPTO_SECRETKEYBYTES],
 /*************************************************
 * Name:        unpack_sk
 *
-* Description: Unpack secret key sk = (rho, tr, key, t0, s1, s2).
+* Description: Unpack secret key sk = (rho, key, tr, s1, s2, t0).
 *
 * Arguments:   - const uint8_t rho[]: output byte array for rho
 *              - const uint8_t tr[]: output byte array for tr
@@ -110,7 +111,7 @@ void pack_sk(uint8_t sk[CRYPTO_SECRETKEYBYTES],
 *              - uint8_t sk[]: byte array containing bit-packed sk
 **************************************************/
 void unpack_sk(uint8_t rho[SEEDBYTES],
-               uint8_t tr[SEEDBYTES],
+               uint8_t tr[SUMHASH512_DIGEST_SIZE],
                uint8_t key[SEEDBYTES],
                polyveck *t0,
                polyvecl *s1,
@@ -127,9 +128,9 @@ void unpack_sk(uint8_t rho[SEEDBYTES],
     key[i] = sk[i];
   sk += SEEDBYTES;
 
-  for(i = 0; i < SEEDBYTES; ++i)
+  for(i = 0; i < SUMHASH512_DIGEST_SIZE; ++i)
     tr[i] = sk[i];
-  sk += SEEDBYTES;
+  sk += SUMHASH512_DIGEST_SIZE;
 
   for(i=0; i < L; ++i)
     polyeta_unpack(&s1->vec[i], sk + i*POLYETA_PACKEDBYTES);
@@ -146,23 +147,25 @@ void unpack_sk(uint8_t rho[SEEDBYTES],
 /*************************************************
 * Name:        pack_sig
 *
-* Description: Bit-pack signature sig = (c, z, h).
+* Description: Bit-pack signature sig = (alpha, z, h, salt).
 *
 * Arguments:   - uint8_t sig[]: output byte array
-*              - const uint8_t *c: pointer to challenge hash length SEEDBYTES
+*              - const uint8_t alpha[]: alpha value of length SUMHASH512_DIGEST_SIZE
 *              - const polyvecl *z: pointer to vector z
 *              - const polyveck *h: pointer to hint vector h
+*              - const uint8_t salt[]: salt value of length SUMHASH512_BLOCK_SIZE
 **************************************************/
 void pack_sig(uint8_t sig[CRYPTO_BYTES],
-              const uint8_t c[SEEDBYTES],
+              const uint8_t alpha[SUMHASH512_DIGEST_SIZE],
               const polyvecl *z,
-              const polyveck *h)
+              const polyveck *h,
+              const uint8_t salt[SUMHASH512_BLOCK_SIZE])
 {
   unsigned int i, j, k;
 
-  for(i=0; i < SEEDBYTES; ++i)
-    sig[i] = c[i];
-  sig += SEEDBYTES;
+  for(i=0; i < SUMHASH512_DIGEST_SIZE; ++i)
+    sig[i] = alpha[i];
+  sig += SUMHASH512_DIGEST_SIZE;
 
   for(i = 0; i < L; ++i)
     polyz_pack(sig + i*POLYZ_PACKEDBYTES, &z->vec[i]);
@@ -180,31 +183,37 @@ void pack_sig(uint8_t sig[CRYPTO_BYTES],
 
     sig[OMEGA + i] = k;
   }
+  sig += POLYVECH_PACKEDBYTES;
+
+  for(i=0; i < SUMHASH512_BLOCK_SIZE; ++i)
+    sig[i] = salt[i];
 }
 
 /*************************************************
 * Name:        unpack_sig
 *
-* Description: Unpack signature sig = (c, z, h).
+* Description: Unpack signature sig = (alpha, z, h, salt).
 *
-* Arguments:   - uint8_t *c: pointer to output challenge hash
+* Arguments:   - uint8_t alpha[]: array to output alpha value
 *              - polyvecl *z: pointer to output vector z
 *              - polyveck *h: pointer to output hint vector h
+*              - uint8_t salt[]: array to output salt value
 *              - const uint8_t sig[]: byte array containing
 *                bit-packed signature
 *
 * Returns 1 in case of malformed signature; otherwise 0.
 **************************************************/
-int unpack_sig(uint8_t c[SEEDBYTES],
+int unpack_sig(uint8_t alpha[SUMHASH512_DIGEST_SIZE],
                polyvecl *z,
                polyveck *h,
+               uint8_t salt[SUMHASH512_BLOCK_SIZE],
                const uint8_t sig[CRYPTO_BYTES])
 {
   unsigned int i, j, k;
 
-  for(i = 0; i < SEEDBYTES; ++i)
-    c[i] = sig[i];
-  sig += SEEDBYTES;
+  for(i = 0; i < SUMHASH512_DIGEST_SIZE; ++i)
+    alpha[i] = sig[i];
+  sig += SUMHASH512_DIGEST_SIZE;
 
   for(i = 0; i < L; ++i)
     polyz_unpack(&z->vec[i], sig + i*POLYZ_PACKEDBYTES);
@@ -232,6 +241,11 @@ int unpack_sig(uint8_t c[SEEDBYTES],
   for(j = k; j < OMEGA; ++j)
     if(sig[j])
       return 1;
+
+  sig += POLYVECH_PACKEDBYTES;
+
+  for(i = 0; i < SUMHASH512_BLOCK_SIZE; ++i)
+    salt[i] = sig[i];
 
   return 0;
 }

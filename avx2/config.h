@@ -3,7 +3,7 @@
 
 //#define DILITHIUM_MODE 2
 //#define DILITHIUM_USE_AES
-//#define DILITHIUM_RANDOMIZED_SIGNING
+//#define DILITHIUM_RANDOMIZED_PROOF
 //#define USE_RDPMC
 //#define DBENCH
 

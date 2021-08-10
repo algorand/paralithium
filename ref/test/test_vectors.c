@@ -230,7 +230,9 @@ int main(void) {
       }
     }
 
-    poly_challenge(&c, seed);
+    uint8_t mu[64];
+    randombytes(mu, 64);
+    poly_challenge(&c, seed, mu);
     printf("c = [");
     for(j = 0; j < N; ++j) {
       printf("%2d", c.coeffs[j]);
@@ -239,8 +241,10 @@ int main(void) {
     }
 
     polyveck_make_hint(&h, &w0, &w1);
-    pack_sig(buf, seed, &y, &h);
-    unpack_sig(seed, &y, &w, buf);
+    uint8_t salt[SUMHASH512_BLOCK_SIZE];
+    randombytes(salt, SUMHASH512_BLOCK_SIZE);
+    pack_sig(buf, seed, &y, &h, salt);
+    unpack_sig(seed, &y, &w, salt, buf);
     if(memcmp(&h,&w,sizeof(h)))
       fprintf(stderr, "ERROR in (un)pack_sig!\n");
 

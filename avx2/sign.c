@@ -213,7 +213,7 @@ int crypto_sign_signature(uint8_t *sig, size_t *siglen, const uint8_t *m, size_t
   shake256_finalize(&state);
   shake256_squeeze(mu, CRHBYTES, &state);
 
-#ifdef DILITHIUM_RANDOMIZED_SIGNING
+#ifdef DILITHIUM_RANDOMIZED_PROOF
   randombytes(rhoprime, CRHBYTES);
 #else
   shake256(rhoprime, CRHBYTES, key, SEEDBYTES + CRHBYTES);

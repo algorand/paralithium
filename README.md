@@ -1,8 +1,8 @@
-# Dilithium
+# Paralithium
 
-[![Build Status](https://travis-ci.org/pq-crystals/dilithium.svg?branch=master)](https://travis-ci.org/pq-crystals/dilithium) [![Coverage Status](https://coveralls.io/repos/github/pq-crystals/dilithium/badge.svg?branch=master)](https://coveralls.io/github/pq-crystals/dilithium?branch=master)
-
-This repository contains the official reference implementation of the [Dilithium](https://www.pq-crystals.org/dilithium/) signature scheme, and an optimized implementation for x86 CPUs supporting the AVX2 instruction set. Dilithium is a [finalist](https://csrc.nist.gov/Projects/post-quantum-cryptography/round-3-submissions) in the [NIST PQC](https://csrc.nist.gov/projects/post-quantum-cryptography) standardization project.
+This repository contains the reference implementation of Paralithium, a variant of the [Dilithium](https://www.pq-crystals.org/dilithium/) signature scheme.
+The motivation behind Paralithium can be found in the [Paralithium specification PDF](spec/paralithium.pdf). 
+Dilithium is a [finalist](https://csrc.nist.gov/Projects/post-quantum-cryptography/round-3-submissions) in the [NIST PQC](https://csrc.nist.gov/projects/post-quantum-cryptography) standardization project.
 
 ## Build instructions
 
@@ -60,11 +60,13 @@ Our Dilithium implementations are contained in the [SUPERCOP](https://bench.cr.y
 
 ## Randomized signing
 
-By default our code implements Dilithium's deterministic signing mode. To change this to the randomized signing mode, define the `DILITHIUM_RANDOMIZED_SIGNING` preprocessor macro at compilation by either uncommenting the line
+By default our code implements Dilithium's deterministic signing mode. To change this to the randomized signing mode, define the `DILITHIUM_RANDOMIZED_PROOF` preprocessor macro at compilation by either uncommenting the line
 ```sh
-//#define DILITHIUM_RANDOMIZED_SIGNING
+//#define DILITHIUM_RANDOMIZED_PROOF
 ```
-in config.h, or adding `-DDILITHIUM_RANDOMIZED_SIGNING` to the compiler flags in the environment variable `CFLAGS`.
+in config.h, or adding `-DDILITHIUM_RANDOMIZED_PROOF` to the compiler flags in the environment variable `CFLAGS`.
+
+Similarly, the macro `DILITHIUM_RANDOMIZED_SALT` controls whether the salt generated during signing is random or deterministic.
 
 ## Shared libraries
 

@@ -20,7 +20,7 @@ implementations:
   - name: ref
     version: https://github.com/pq-crystals/dilithium/commit/d9c885d3f2e11c05529eeeb7d70d808c972b8409
     folder_name: ref
-    compile_opts: -DDILITHIUM_MODE=3 -DDILITHIUM_RANDOMIZED_SIGNING
+    compile_opts: -DDILITHIUM_MODE=3 -DDILITHIUM_RANDOMIZED_PROOF
     signature_keypair: pqcrystals_dilithium3_ref_keypair
     signature_signature: pqcrystals_dilithium3_ref_signature
     signature_verify: pqcrystals_dilithium3_ref_verify
@@ -28,7 +28,7 @@ implementations:
     common_dep: common_ref
   - name: avx2
     version: https://github.com/pq-crystals/dilithium/commit/d9c885d3f2e11c05529eeeb7d70d808c972b8409
-    compile_opts: -DDILITHIUM_MODE=3 -DDILITHIUM_RANDOMIZED_SIGNING
+    compile_opts: -DDILITHIUM_MODE=3 -DDILITHIUM_RANDOMIZED_PROOF
     signature_keypair: pqcrystals_dilithium3_avx2_keypair
     signature_signature: pqcrystals_dilithium3_avx2_signature
     signature_verify: pqcrystals_dilithium3_avx2_verify

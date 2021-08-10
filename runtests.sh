@@ -4,7 +4,8 @@ ARCH="${ARCH:-amd64}"
 ARCH="${TRAVIS_CPU_ARCH:-$ARCH}"
 
 if [ "$ARCH" = "amd64" -a "$TRAVIS_OS_NAME" != "osx" ]; then
-  DIRS="ref avx2"
+  DIRS="ref"
+  #DIRS="ref avx2"
 else
   DIRS="ref"
 fi

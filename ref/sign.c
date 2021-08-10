@@ -7,6 +7,9 @@
 #include "randombytes.h"
 #include "symmetric.h"
 #include "fips202.h"
+#include "sumhash512.h"
+
+static int crypto_sign_keypair_params(uint8_t *pk, uint8_t *sk, const uint8_t *rho, const uint8_t *rhoprime, const uint8_t *key);
 
 /*************************************************
 * Name:        crypto_sign_keypair
@@ -22,18 +25,50 @@
 **************************************************/
 int crypto_sign_keypair(uint8_t *pk, uint8_t *sk) {
   uint8_t seedbuf[2*SEEDBYTES + CRHBYTES];
-  uint8_t tr[SEEDBYTES];
   const uint8_t *rho, *rhoprime, *key;
-  polyvecl mat[K];
-  polyvecl s1, s1hat;
-  polyveck s2, t1, t0;
 
   /* Get randomness for rho, rhoprime and key */
   randombytes(seedbuf, SEEDBYTES);
   shake256(seedbuf, 2*SEEDBYTES + CRHBYTES, seedbuf, SEEDBYTES);
-  rho = seedbuf;
-  rhoprime = rho + SEEDBYTES;
+  rho = seedbuf;              // 32 bytes
+  rhoprime = rho + SEEDBYTES; // 64 bytes
+  key = rhoprime + CRHBYTES;  // 32 bytes
+
+  return crypto_sign_keypair_params(pk, sk, rho, rhoprime, key);
+}
+
+/*************************************************
+* Name:        crypto_sign_keypair_rho
+*
+* Description: Generates public and private key using a given rho value.
+*
+* Arguments:   - uint8_t *pk:  pointer to output public key (allocated
+*                              array of CRYPTO_PUBLICKEYBYTES bytes)
+*              - uint8_t *sk:  pointer to output private key (allocated
+*                              array of CRYPTO_SECRETKEYBYTES bytes)
+*              - uint8_t *rho: pointer to rho value (length SEEDBYTES)
+*
+* Returns 0 (success)
+**************************************************/
+int crypto_sign_keypair_rho(uint8_t *pk, uint8_t *sk, const uint8_t *rho) {
+  uint8_t seedbuf[SEEDBYTES + CRHBYTES];
+  const uint8_t *rhoprime, *key;
+
+  /* Get randomness for rhoprime and key */
+  randombytes(seedbuf, SEEDBYTES);
+  shake256(seedbuf, SEEDBYTES + CRHBYTES, seedbuf, SEEDBYTES);
+  rhoprime = seedbuf;
   key = rhoprime + CRHBYTES;
+
+  return crypto_sign_keypair_params(pk, sk, rho, rhoprime, key);
+}
+
+static int crypto_sign_keypair_params(uint8_t *pk, uint8_t *sk, const uint8_t *rho, const uint8_t *rhoprime, const uint8_t *key) {
+  uint8_t tr[SUMHASH512_DIGEST_SIZE];
+  polyvecl mat[K];
+  polyvecl s1, s1hat;
+  polyveck s2, t1, t0;
+
 
   /* Expand matrix */
   polyvec_matrix_expand(mat, rho);
@@ -57,8 +92,8 @@ int crypto_sign_keypair(uint8_t *pk, uint8_t *sk) {
   polyveck_power2round(&t1, &t0, &t1);
   pack_pk(pk, rho, &t1);
 
-  /* Compute H(rho, t1) and write secret key */
-  shake256(tr, SEEDBYTES, pk, CRYPTO_PUBLICKEYBYTES);
+  /* Compute SS(rho, t1) and write secret key */
+  sumhash512(tr, pk, CRYPTO_PUBLICKEYBYTES);
   pack_sk(sk, rho, tr, key, &t0, &s1, &s2);
 
   return 0;
@@ -84,32 +119,51 @@ int crypto_sign_signature(uint8_t *sig,
                           const uint8_t *sk)
 {
   unsigned int n;
-  uint8_t seedbuf[3*SEEDBYTES + 2*CRHBYTES];
+  uint8_t seedbuf[2*SEEDBYTES + 2*SUMHASH512_DIGEST_SIZE + CRHBYTES];
   uint8_t *rho, *tr, *key, *mu, *rhoprime;
+  uint8_t salt[SUMHASH512_BLOCK_SIZE];
   uint16_t nonce = 0;
   polyvecl mat[K], s1, y, z;
   polyveck t0, s2, w1, w0, h;
   poly cp;
-  keccak_state state;
+  sumhash512_state st;
+  keccak_state kst;
 
   rho = seedbuf;
   tr = rho + SEEDBYTES;
-  key = tr + SEEDBYTES;
+  key = tr + SUMHASH512_DIGEST_SIZE;
   mu = key + SEEDBYTES;
-  rhoprime = mu + CRHBYTES;
+  rhoprime = mu + SUMHASH512_DIGEST_SIZE;
   unpack_sk(rho, tr, key, &t0, &s1, &s2, sk);
 
-  /* Compute CRH(tr, msg) */
-  shake256_init(&state);
-  shake256_absorb(&state, tr, SEEDBYTES);
-  shake256_absorb(&state, m, mlen);
-  shake256_finalize(&state);
-  shake256_squeeze(mu, CRHBYTES, &state);
+#ifdef DILITHIUM_RANDOMIZED_SALT
+  randombytes(salt, SUMHASH512_BLOCK_SIZE);
+#else
+  shake256_init(&kst);
+  shake256_absorb(&kst, key, SEEDBYTES);
+  uint8_t zero[1] = {0x00};
+  shake256_absorb(&kst, zero, 1);
+  shake256_absorb(&kst, mu, SUMHASH512_DIGEST_SIZE);
+  shake256_finalize(&kst);
+  shake256_squeeze(salt, SUMHASH512_BLOCK_SIZE, &kst);
+#endif
 
-#ifdef DILITHIUM_RANDOMIZED_SIGNING
+  /* Compute SSS(tr, msg) using the salt */
+  sumhash512_init_salted(&st, salt);
+  sumhash512_update(&st, tr, SUMHASH512_DIGEST_SIZE);
+  sumhash512_update(&st, m, mlen);
+  sumhash512_final(&st, mu);
+
+#ifdef DILITHIUM_RANDOMIZED_PROOF
   randombytes(rhoprime, CRHBYTES);
 #else
-  shake256(rhoprime, CRHBYTES, key, SEEDBYTES + CRHBYTES);
+  shake256_init(&kst);
+  shake256_absorb(&kst, key, SEEDBYTES);
+  uint8_t ones[1] = {0xff};
+  shake256_absorb(&kst, ones, 1);
+  shake256_absorb(&kst, m, mlen);
+  shake256_finalize(&kst);
+  shake256_squeeze(rhoprime, CRHBYTES, &kst);
 #endif
 
   /* Expand matrix and transform vectors */
@@ -134,12 +188,11 @@ rej:
   polyveck_decompose(&w1, &w0, &w1);
   polyveck_pack_w1(sig, &w1);
 
-  shake256_init(&state);
-  shake256_absorb(&state, mu, CRHBYTES);
-  shake256_absorb(&state, sig, K*POLYW1_PACKEDBYTES);
-  shake256_finalize(&state);
-  shake256_squeeze(sig, SEEDBYTES, &state);
-  poly_challenge(&cp, sig);
+  sumhash512_init(&st);
+  sumhash512_update(&st, mu, SUMHASH512_DIGEST_SIZE);
+  sumhash512_update(&st, sig, K*POLYW1_PACKEDBYTES);
+  sumhash512_final(&st, sig); // alpha is now at the start of sig
+  poly_challenge(&cp, mu, sig);
   poly_ntt(&cp);
 
   /* Compute z, reject if it reveals secret */
@@ -172,7 +225,7 @@ rej:
     goto rej;
 
   /* Write signature */
-  pack_sig(sig, sig, &z, &h);
+  pack_sig(sig, sig, &z, &h, salt);
   *siglen = CRYPTO_BYTES;
   return 0;
 }
@@ -230,33 +283,35 @@ int crypto_sign_verify(const uint8_t *sig,
   unsigned int i;
   uint8_t buf[K*POLYW1_PACKEDBYTES];
   uint8_t rho[SEEDBYTES];
-  uint8_t mu[CRHBYTES];
-  uint8_t c[SEEDBYTES];
-  uint8_t c2[SEEDBYTES];
+  uint8_t mu[SUMHASH512_DIGEST_SIZE];
+  uint8_t tr[SUMHASH512_DIGEST_SIZE];
+  uint8_t alpha[SUMHASH512_DIGEST_SIZE];
+  uint8_t alpha2[SUMHASH512_DIGEST_SIZE];
+  uint8_t salt[SUMHASH512_BLOCK_SIZE];
   poly cp;
   polyvecl mat[K], z;
   polyveck t1, w1, h;
-  keccak_state state;
+  sumhash512_state st;
 
   if(siglen != CRYPTO_BYTES)
     return -1;
 
   unpack_pk(rho, &t1, pk);
-  if(unpack_sig(c, &z, &h, sig))
+  if(unpack_sig(alpha, &z, &h, salt, sig))
     return -1;
   if(polyvecl_chknorm(&z, GAMMA1 - BETA))
     return -1;
 
-  /* Compute CRH(H(rho, t1), msg) */
-  shake256(mu, SEEDBYTES, pk, CRYPTO_PUBLICKEYBYTES);
-  shake256_init(&state);
-  shake256_absorb(&state, mu, SEEDBYTES);
-  shake256_absorb(&state, m, mlen);
-  shake256_finalize(&state);
-  shake256_squeeze(mu, CRHBYTES, &state);
+  /* Compute SSS(SS(rho, t1), msg) */
+  sumhash512(tr, pk, CRYPTO_PUBLICKEYBYTES);
+
+  sumhash512_init_salted(&st, salt);
+  sumhash512_update(&st, tr, SUMHASH512_DIGEST_SIZE);
+  sumhash512_update(&st, m, mlen);
+  sumhash512_final(&st, mu);
 
   /* Matrix-vector multiplication; compute Az - c2^dt1 */
-  poly_challenge(&cp, c);
+  poly_challenge(&cp, mu, alpha);
   polyvec_matrix_expand(mat, rho);
 
   polyvecl_ntt(&z);
@@ -277,13 +332,12 @@ int crypto_sign_verify(const uint8_t *sig,
   polyveck_pack_w1(buf, &w1);
 
   /* Call random oracle and verify challenge */
-  shake256_init(&state);
-  shake256_absorb(&state, mu, CRHBYTES);
-  shake256_absorb(&state, buf, K*POLYW1_PACKEDBYTES);
-  shake256_finalize(&state);
-  shake256_squeeze(c2, SEEDBYTES, &state);
-  for(i = 0; i < SEEDBYTES; ++i)
-    if(c[i] != c2[i])
+  sumhash512_init(&st);
+  sumhash512_update(&st, mu, SUMHASH512_DIGEST_SIZE);
+  sumhash512_update(&st, buf, K*POLYW1_PACKEDBYTES);
+  sumhash512_final(&st, alpha2);
+  for(i = 0; i < SUMHASH512_DIGEST_SIZE; ++i)
+    if(alpha[i] != alpha2[i])
       return -1;
 
   return 0;
