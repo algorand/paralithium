@@ -139,11 +139,12 @@ int crypto_sign_signature(uint8_t *sig,
 #ifdef DILITHIUM_RANDOMIZED_SALT
   randombytes(salt, SUMHASH512_BLOCK_SIZE);
 #else
+  // salt := H(key || 0 || msg)
   shake256_init(&kst);
   shake256_absorb(&kst, key, SEEDBYTES);
   uint8_t zero[1] = {0x00};
   shake256_absorb(&kst, zero, 1);
-  shake256_absorb(&kst, mu, SUMHASH512_DIGEST_SIZE);
+  shake256_absorb(&kst, m, mlen);
   shake256_finalize(&kst);
   shake256_squeeze(salt, SUMHASH512_BLOCK_SIZE, &kst);
 #endif
@@ -157,11 +158,12 @@ int crypto_sign_signature(uint8_t *sig,
 #ifdef DILITHIUM_RANDOMIZED_PROOF
   randombytes(rhoprime, CRHBYTES);
 #else
+  // rhoprime := H(key || 1 || mu)
   shake256_init(&kst);
   shake256_absorb(&kst, key, SEEDBYTES);
   uint8_t ones[1] = {0xff};
   shake256_absorb(&kst, ones, 1);
-  shake256_absorb(&kst, m, mlen);
+  shake256_absorb(&kst, mu, SUMHASH512_DIGEST_SIZE);
   shake256_finalize(&kst);
   shake256_squeeze(rhoprime, CRHBYTES, &kst);
 #endif
