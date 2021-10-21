@@ -230,8 +230,8 @@ int main(void) {
       }
     }
 
-    uint8_t mu[64];
-    randombytes(mu, 64);
+    uint8_t mu[SUMHASH512_DIGEST_SIZE];
+    randombytes(mu, SUMHASH512_DIGEST_SIZE);
     poly_challenge(&c, seed, mu);
     printf("c = [");
     for(j = 0; j < N; ++j) {
