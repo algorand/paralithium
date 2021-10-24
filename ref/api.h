@@ -55,10 +55,12 @@ int pqcrystals_dilithium2aes_ref_open(uint8_t *m, size_t *mlen,
 #define pqcrystals_dilithium3_PUBLICKEYBYTES 1952
 #define pqcrystals_dilithium3_SECRETKEYBYTES 4032
 #define pqcrystals_dilithium3_BYTES 3389
+#define pqcrystals_dilithium3_SEED 32
 
 #define pqcrystals_dilithium3_ref_PUBLICKEYBYTES pqcrystals_dilithium3_PUBLICKEYBYTES
 #define pqcrystals_dilithium3_ref_SECRETKEYBYTES pqcrystals_dilithium3_SECRETKEYBYTES
 #define pqcrystals_dilithium3_ref_BYTES pqcrystals_dilithium3_BYTES
+
 
 int pqcrystals_dilithium3_ref_keypair(uint8_t *pk, uint8_t *sk);
 int pqcrystals_dilithium3_ref_keypair_rho(uint8_t *pk, uint8_t *sk,const uint8_t *rho);

@@ -16,7 +16,10 @@
 
 package cparalithium
 
-import "errors"
+import (
+	"bytes"
+	"errors"
+)
 
 // NOTE: cgo go code couldn't compile with the flags: -Wmissing-prototypes and -Wno-unused-paramete
 
@@ -25,22 +28,26 @@ import "errors"
 import "C"
 
 type (
-	// ParalithiumSignature is the signature used by the dilithium scheme
+	// ParalithiumSignature is the signature used by the paralithium scheme
 	ParalithiumSignature [3389]byte
-	// ParalithiumPublicKey is the public key used by the dilithium scheme
+	// ParalithiumPublicKey is the public key used by the paralithium scheme
 	ParalithiumPublicKey [1952]byte
-	// DilPrivateKey is the private key used by the dilithium scheme
+	// ParalithiumPrivateKey is the private key used by the paralithium scheme
 	ParalithiumPrivateKey [4032]byte
+	// ParalithiumSeed is a seed data used to generate paralithium keypairs with rho
+	ParalithiumSeed [32]byte
 )
 
 // Exporting to be used when attempting to wrap and use this package.
 const (
-	// SigSize is the size of a dilithium signature
+	// SigSize is the size of a paralithium signature
 	SigSize = C.pqcrystals_dilithium3_BYTES
-	// PublicKeySize is the size of a dilithium public key
+	// PublicKeySize is the size of a paralithium public key
 	PublicKeySize = C.pqcrystals_dilithium3_PUBLICKEYBYTES
-	// PrivateKeySize is the size of a dilithium private key
+	// PrivateKeySize is the size of a paralithium private key
 	PrivateKeySize = C.pqcrystals_dilithium3_SECRETKEYBYTES
+	// SeedSize is the size of seed used to init keys with rho
+	SeedSize = C.pqcrystals_dilithium3_SEED
 )
 
 func init() {
@@ -48,6 +55,7 @@ func init() {
 	_ = [SigSize]byte(ParalithiumSignature{})
 	_ = [PublicKeySize]byte(ParalithiumPublicKey{})
 	_ = [PrivateKeySize]byte(ParalithiumPrivateKey{})
+	_ = [SeedSize]byte(ParalithiumSeed{})
 }
 
 // NewKeys Generates a paralithium private and public key .
@@ -55,6 +63,16 @@ func NewKeys() (ParalithiumPrivateKey, ParalithiumPublicKey) {
 	pk := ParalithiumPublicKey{}
 	sk := ParalithiumPrivateKey{}
 	C.pqcrystals_dilithium3_ref_keypair((*C.uchar)(&(pk[0])), (*C.uchar)(&(sk[0])))
+
+	return sk, pk
+}
+
+// NewKeys Generates a paralithium private and public key using a seed as rho.
+func NewKeysWithRho(seed ParalithiumSeed) (ParalithiumPrivateKey, ParalithiumPublicKey) {
+	pk := ParalithiumPublicKey{}
+	sk := ParalithiumPrivateKey{}
+
+	C.pqcrystals_dilithium3_ref_keypair_rho((*C.uchar)(&(pk[0])), (*C.uchar)(&(sk[0])), (*C.uchar)(&(seed[0])))
 
 	return sk, pk
 }
@@ -78,6 +96,17 @@ func (sk *ParalithiumPrivateKey) SignBytes(data []byte) []byte {
 
 // ErrBadParalithiumSignature indicates signature isn't valid.
 var ErrBadParalithiumSignature = errors.New("bad signature")
+
+// ErrPkDoesNotContainRho indicates that the pk does not contain the correct rho value
+var ErrPkDoesNotContainRho = errors.New("public key does not contain the correct rho value")
+
+// VerifyRho verifies that the public key was created using a given seed.
+func (v *ParalithiumPublicKey) VerifyRho(seed ParalithiumSeed) error {
+	if !bytes.Equal(seed[:], v[:SeedSize]) {
+		return ErrPkDoesNotContainRho
+	}
+	return nil
+}
 
 // VerifyBytes follows dilithium algorithm to verify a signature.
 func (v *ParalithiumPublicKey) VerifyBytes(data []byte, sig []byte) error {
