@@ -28,7 +28,7 @@ int crypto_sign_keypair(uint8_t *pk, uint8_t *sk) {
   const uint8_t *rho, *rhoprime, *key;
 
   /* Get randomness for rho, rhoprime and key */
-  randombytes(seedbuf, SEEDBYTES);
+  paralithium_randombytes(seedbuf, SEEDBYTES);
   shake256(seedbuf, 2*SEEDBYTES + CRHBYTES, seedbuf, SEEDBYTES);
   rho = seedbuf;              // 32 bytes
   rhoprime = rho + SEEDBYTES; // 64 bytes
@@ -55,7 +55,7 @@ int crypto_sign_keypair_rho(uint8_t *pk, uint8_t *sk, const uint8_t *rho) {
   const uint8_t *rhoprime, *key;
 
   /* Get randomness for rhoprime and key */
-  randombytes(seedbuf, SEEDBYTES);
+  paralithium_randombytes(seedbuf, SEEDBYTES);
   shake256(seedbuf, SEEDBYTES + CRHBYTES, seedbuf, SEEDBYTES);
   rhoprime = seedbuf;
   key = rhoprime + CRHBYTES;
@@ -137,7 +137,7 @@ int crypto_sign_signature(uint8_t *sig,
   unpack_sk(rho, tr, key, &t0, &s1, &s2, sk);
 
 #ifdef DILITHIUM_RANDOMIZED_SALT
-  randombytes(salt, SUMHASH512_BLOCK_SIZE);
+  paralithium_randombytes(salt, SUMHASH512_BLOCK_SIZE);
 #else
   // salt := H(key || 0 || msg)
   shake256_init(&kst);
@@ -156,7 +156,7 @@ int crypto_sign_signature(uint8_t *sig,
   sumhash512_final(&st, mu);
 
 #ifdef DILITHIUM_RANDOMIZED_PROOF
-  randombytes(rhoprime, CRHBYTES);
+  paralithium_randombytes(rhoprime, CRHBYTES);
 #else
   // rhoprime := H(key || 1 || mu)
   shake256_init(&kst);
