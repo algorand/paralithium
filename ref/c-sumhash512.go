@@ -18,7 +18,7 @@ package cparalithium
 
 // NOTE: cgo go code couldn't compile with the flags: -Wmissing-prototypes and -Wno-unused-paramete
 
-//#cgo CFLAGS: -Wall -Wextra -Wpedantic -Wredundant-decls -Wshadow -Wvla -Wpointer-arith -Wno-unused-parameter  -Ofast -mavx2 -fomit-frame-pointer
+//#cgo CFLAGS: -Wall -Wextra -Wpedantic -Wredundant-decls -Wshadow -Wvla -Wpointer-arith -Wno-unused-parameter  -Ofast -msse2 -fomit-frame-pointer
 //#include "sumhash512.h"
 //#include "memory.h"
 import "C"
