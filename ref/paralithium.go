@@ -19,6 +19,7 @@ package cparalithium
 import (
 	"bytes"
 	"errors"
+	"runtime"
 )
 
 // NOTE: cgo go code couldn't compile with the flags: -Wmissing-prototypes and -Wno-unused-paramete
@@ -73,6 +74,7 @@ func NewKeysWithRho(seed ParalithiumSeed) (ParalithiumPrivateKey, ParalithiumPub
 	sk := ParalithiumPrivateKey{}
 
 	C.pqcrystals_dilithium3_ref_keypair_rho((*C.uchar)(&(pk[0])), (*C.uchar)(&(sk[0])), (*C.uchar)(&(seed[0])))
+	runtime.KeepAlive(seed)
 
 	return sk, pk
 }
@@ -81,16 +83,18 @@ func NewKeysWithRho(seed ParalithiumSeed) (ParalithiumPrivateKey, ParalithiumPub
 // the size of the signature should conform with dil3Signature.
 // Note: the signature verifies the size of the output signature, bad code underneath will panic.
 func (sk *ParalithiumPrivateKey) SignBytes(data []byte) []byte {
+	dataLen := len(data)
 	cdata := (*C.uchar)(C.NULL)
-	if len(data) != 0 {
+	if dataLen != 0 {
 		cdata = (*C.uchar)(&data[0])
 	}
 	var sig ParalithiumSignature
-	var smlen uint64
-	C.pqcrystals_dilithium3_ref_signature((*C.uchar)(&sig[0]), (*C.size_t)(&smlen), (*C.uchar)(cdata), (C.size_t)(len(data)), (*C.uchar)(&(sk[0])))
-	if smlen != uint64(SigSize) {
+	var smlen C.size_t
+	C.pqcrystals_dilithium3_ref_signature((*C.uchar)(&sig[0]), (*C.size_t)(&smlen), (*C.uchar)(cdata), (C.size_t)(dataLen), (*C.uchar)(&(sk[0])))
+	if uint64(smlen) != uint64(SigSize) {
 		panic("const value of dilithium signature had changed.")
 	}
+	runtime.KeepAlive(data)
 	return sig[:]
 }
 
@@ -110,18 +114,22 @@ func (v *ParalithiumPublicKey) VerifyRho(seed ParalithiumSeed) error {
 
 // VerifyBytes follows dilithium algorithm to verify a signature.
 func (v *ParalithiumPublicKey) VerifyBytes(data []byte, sig []byte) error {
-	if len(sig) == 0 {
+	sigLen := len(sig)
+	if sigLen == 0 {
 		return ErrBadParalithiumSignature
 	}
 
+	dataLen := len(data)
 	cdata := (*C.uchar)(C.NULL)
-	if len(data) != 0 {
+	if dataLen != 0 {
 		cdata = (*C.uchar)(&data[0])
 	}
 
-	out := C.pqcrystals_dilithium3_ref_verify((*C.uchar)(&sig[0]), (C.size_t)(len(sig)), (*C.uchar)(cdata), C.size_t(len(data)), (*C.uchar)(&(v[0])))
+	out := C.pqcrystals_dilithium3_ref_verify((*C.uchar)(&sig[0]), (C.size_t)(sigLen), (*C.uchar)(cdata), C.size_t(dataLen), (*C.uchar)(&(v[0])))
 	if out != 0 {
 		return ErrBadParalithiumSignature
 	}
+	runtime.KeepAlive(data)
+	runtime.KeepAlive(sig)
 	return nil
 }

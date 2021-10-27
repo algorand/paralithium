@@ -24,6 +24,7 @@ package cparalithium
 import "C"
 import (
 	"hash"
+	"runtime"
 	"unsafe"
 )
 
@@ -66,13 +67,15 @@ func (s *Sumhash512State) BlockSize() int {
 // Write (via the embedded io.Writer interface) adds more data to the running hash.
 // It never returns an error.
 func (s *Sumhash512State) Write(p []byte) (nn int, err error) {
+	inputLen := len(p)
 	cdata := (*C.uchar)(C.NULL)
-	if len(p) != 0 {
+	if inputLen != 0 {
 		cdata = (*C.uchar)(&p[0])
 	}
 
-	C.sumhash512_update((*C.struct_sumhash512_state)(&s.context), (*C.uchar)(cdata), (C.size_t)(len(p)))
-	return len(p), nil
+	C.sumhash512_update((*C.struct_sumhash512_state)(&s.context), (*C.uchar)(cdata), (C.size_t)(inputLen))
+	runtime.KeepAlive(p)
+	return inputLen, nil
 }
 
 // Sum appends the current hash to b and returns the resulting slice.
@@ -84,6 +87,8 @@ func (s *Sumhash512State) Sum(in []byte) []byte {
 	var output [Sumhash512DigestSize]byte
 	outputPtr := unsafe.Pointer(&output[0])
 	C.sumhash512_final((*C.struct_sumhash512_state)(&stateCopy.context), (*C.uchar)(outputPtr))
+	runtime.KeepAlive(in)
+	runtime.KeepAlive(stateCopy)
 
 	return append(in, output[:]...)
 }
