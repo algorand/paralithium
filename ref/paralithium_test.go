@@ -54,7 +54,7 @@ func TestParalithiumSigningWithRho(t *testing.T) {
 		binary.BigEndian.PutUint64(iter, uint64(i+1))
 		iterHash := sha256.Sum256(iter)
 
-		rho := ParalithiumSeed(iterHash)
+		rho := ParalithiumRho(iterHash)
 
 		sk, pk := NewKeysWithRho(rho)
 		b := make([]byte, 8)
@@ -82,7 +82,7 @@ func TestParalithiumWrongRho(t *testing.T) {
 
 	seed := []byte{'s', 'e', 'e', 'd'}
 	seedHash := sha256.Sum256(seed)
-	rho := ParalithiumSeed(seedHash)
+	rho := ParalithiumRho(seedHash)
 
 	_, pk := NewKeysWithRho(rho)
 
@@ -90,7 +90,7 @@ func TestParalithiumWrongRho(t *testing.T) {
 
 	seed2 := []byte{'s', 'e', 'e', 'd', '2'}
 	seedHash2 := sha256.Sum256(seed2)
-	rho2 := ParalithiumSeed(seedHash2)
+	rho2 := ParalithiumRho(seedHash2)
 
 	a.Error(pk.VerifyRho(rho2))
 

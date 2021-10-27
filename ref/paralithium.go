@@ -35,8 +35,9 @@ type (
 	ParalithiumPublicKey [1952]byte
 	// ParalithiumPrivateKey is the private key used by the paralithium scheme
 	ParalithiumPrivateKey [4032]byte
-	// ParalithiumSeed is a seed data used to generate paralithium keypairs with rho
-	ParalithiumSeed [32]byte
+	// ParalithiumRho is a data used to generate paralithium keypairs. This value is stored
+	// as part of the public key
+	ParalithiumRho [32]byte
 )
 
 // Exporting to be used when attempting to wrap and use this package.
@@ -47,8 +48,8 @@ const (
 	PublicKeySize = C.pqcrystals_dilithium3_PUBLICKEYBYTES
 	// PrivateKeySize is the size of a paralithium private key
 	PrivateKeySize = C.pqcrystals_dilithium3_SECRETKEYBYTES
-	// SeedSize is the size of seed used to init keys with rho
-	SeedSize = C.pqcrystals_dilithium3_SEED
+	// RhoSize is the size of rho used to generate keys.
+	RhoSize = C.pqcrystals_dilithium3_SEED
 )
 
 func init() {
@@ -56,7 +57,7 @@ func init() {
 	_ = [SigSize]byte(ParalithiumSignature{})
 	_ = [PublicKeySize]byte(ParalithiumPublicKey{})
 	_ = [PrivateKeySize]byte(ParalithiumPrivateKey{})
-	_ = [SeedSize]byte(ParalithiumSeed{})
+	_ = [RhoSize]byte(ParalithiumRho{})
 }
 
 // NewKeys Generates a paralithium private and public key .
@@ -69,12 +70,12 @@ func NewKeys() (ParalithiumPrivateKey, ParalithiumPublicKey) {
 }
 
 // NewKeys Generates a paralithium private and public key using a seed as rho.
-func NewKeysWithRho(seed ParalithiumSeed) (ParalithiumPrivateKey, ParalithiumPublicKey) {
+func NewKeysWithRho(rho ParalithiumRho) (ParalithiumPrivateKey, ParalithiumPublicKey) {
 	pk := ParalithiumPublicKey{}
 	sk := ParalithiumPrivateKey{}
 
-	C.pqcrystals_dilithium3_ref_keypair_rho((*C.uchar)(&(pk[0])), (*C.uchar)(&(sk[0])), (*C.uchar)(&(seed[0])))
-	runtime.KeepAlive(seed)
+	C.pqcrystals_dilithium3_ref_keypair_rho((*C.uchar)(&(pk[0])), (*C.uchar)(&(sk[0])), (*C.uchar)(&(rho[0])))
+	runtime.KeepAlive(rho)
 
 	return sk, pk
 }
@@ -104,9 +105,9 @@ var ErrBadParalithiumSignature = errors.New("bad signature")
 // ErrPkDoesNotContainRho indicates that the pk does not contain the correct rho value
 var ErrPkDoesNotContainRho = errors.New("public key does not contain the correct rho value")
 
-// VerifyRho verifies that the public key was created using a given seed.
-func (v *ParalithiumPublicKey) VerifyRho(seed ParalithiumSeed) error {
-	if !bytes.Equal(seed[:], v[:SeedSize]) {
+// VerifyRho verifies that the public key was created using a given rho value.
+func (v *ParalithiumPublicKey) VerifyRho(rho ParalithiumRho) error {
+	if !bytes.Equal(rho[:], v[:RhoSize]) {
 		return ErrPkDoesNotContainRho
 	}
 	return nil
